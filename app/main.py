@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 import os
 from dotenv import load_dotenv
 from pypdf import PdfReader
+from app.services.pdf_processor import PDFProcessor
 
 # Cargar variables de entorno
 load_dotenv()
@@ -22,34 +23,20 @@ def root():
         "version": "1.0.0"
     }
 
+
+
 @app.post("/upload-report")
 async def upload_report(file: UploadFile = File(...)):
-    """
-    Upload a PDF ultrasound report for processing
+    # Leer el PDF del request
+    pdf_content = await file.read()
     
-    Args:
-        file: PDF file to process
-        
-    Returns:
-        JSON with extracted data and image URLs
-    """
+    # Procesar
+    processor = PDFProcessor()
+    result = processor.process_report(pdf_content, file.filename)
     
-    # Validar que sea PDF
-    if not file.filename.endswith('.pdf'):
-        raise HTTPException(status_code=400, detail="Only PDF files are allowed")
-    
-    # TODO: Implementar lógica de procesamiento
-    # 1. Leer el PDF
-    # 2. Extraer texto con Document AI
-    # 3. Extraer imágenes
-    # 4. Subir imágenes a Cloud Storage
-    # 5. Guardar metadata en Firestore
-    
-    return {
-        "status": "received",
-        "filename": file.filename,
-        "message": "Processing not implemented yet"
-    }
+    return result
+
+
 
 @app.get("/reports/{report_id}")
 def get_report(report_id: str):
