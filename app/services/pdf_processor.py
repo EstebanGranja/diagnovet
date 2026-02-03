@@ -124,119 +124,59 @@ class PDFProcessor:
         try:
             # Leer PDF
             pdf_reader = PdfReader(BytesIO(pdf_content))
+            image_count = 0
+            
+            print(f"  PDF tiene {len(pdf_reader.pages)} páginas")
             
             # Recorrer páginas
             for page_num, page in enumerate(pdf_reader.pages):
-                # Buscar imágenes en la página
-                if '/Resources' in page and '/XObject' in page['/Resources']:
-                    x_objects = page['/Resources']['/XObject']
+                print(f"  Procesando página {page_num + 1}...")
+                
+                try:
+                    # Método 1: Usar page.images (pypdf >= 3.0)
+                    images_list = list(page.images) if hasattr(page, 'images') else []
+                    print(f"    Encontradas {len(images_list)} imágenes en página {page_num + 1}")
                     
-                    for obj_name in x_objects:
-                        obj = x_objects[obj_name]
-                        
-                        # Verificar si es imagen
-                        if obj.get('/Subtype') == '/Image':
-                            try:
-                                # Obtener filtro de compresión
-                                img_filter = obj.get('/Filter')
+                    for img_index, image in enumerate(images_list):
+                        try:
+                            img_bytes = image.data
+                            img_name = getattr(image, 'name', None) or f"image_{img_index}"
+                            
+                            print(f"    Procesando imagen: {img_name}, size: {len(img_bytes) if img_bytes else 0} bytes")
+                            
+                            # Verificar que tenga contenido mínimo
+                            if img_bytes and len(img_bytes) > 100:
+                                # Determinar extensión basada en el contenido
+                                ext = 'png'
+                                if img_bytes[:2] == b'\xff\xd8':  # JPEG magic bytes
+                                    ext = 'jpg'
+                                elif img_bytes[:8] == b'\x89PNG\r\n\x1a\n':  # PNG magic bytes
+                                    ext = 'png'
                                 
-                                # Si es lista, tomar el primero
-                                if isinstance(img_filter, list):
-                                    img_filter = img_filter[0] if img_filter else None
+                                # Generar nombre único
+                                clean_filename = filename.replace('.pdf', '').replace(' ', '_').replace('/', '_')
+                                img_filename = f"{clean_filename}_p{page_num + 1}_img{img_index + 1}.{ext}"
                                 
-                                data = obj.get_data()
-                                width = int(obj['/Width'])
-                                height = int(obj['/Height'])
+                                # Subir a Cloud Storage
+                                url = self.storage.upload_image(img_bytes, img_filename)
+                                image_urls.append(url)
+                                image_count += 1
+                                print(f"      ✓ Imagen subida: {img_filename}")
+                            else:
+                                print(f"      ⚠ Imagen muy pequeña, ignorada")
                                 
-                                img_bytes = None
-                                img_format = 'PNG'
-                                
-                                # Manejar según el tipo de compresión
-                                if img_filter == '/DCTDecode':
-                                    # JPEG - usar datos directamente
-                                    img_bytes = obj._data  # Datos raw JPEG
-                                    img_format = 'JPEG'
-                                    
-                                elif img_filter == '/FlateDecode':
-                                    # PNG/Raw comprimido con zlib
-                                    color_space = obj.get('/ColorSpace')
-                                    bits_per_component = int(obj.get('/BitsPerComponent', 8))
-                                    
-                                    # Determinar modo de color
-                                    if color_space == '/DeviceRGB':
-                                        mode = 'RGB'
-                                    elif color_space == '/DeviceGray':
-                                        mode = 'L'
-                                    elif color_space == '/DeviceCMYK':
-                                        mode = 'CMYK'
-                                    else:
-                                        # Intentar RGB por defecto
-                                        mode = 'RGB'
-                                    
-                                    try:
-                                        image = Image.frombytes(mode, (width, height), data)
-                                        img_byte_arr = BytesIO()
-                                        image.save(img_byte_arr, format='PNG')
-                                        img_bytes = img_byte_arr.getvalue()
-                                    except Exception:
-                                        # Si falla, intentar abrir directamente
-                                        try:
-                                            image = Image.open(BytesIO(data))
-                                            img_byte_arr = BytesIO()
-                                            image.save(img_byte_arr, format='PNG')
-                                            img_bytes = img_byte_arr.getvalue()
-                                        except Exception:
-                                            continue
-                                            
-                                elif img_filter == '/JPXDecode':
-                                    # JPEG2000
-                                    img_bytes = obj._data
-                                    img_format = 'JPEG2000'
-                                    
-                                else:
-                                    # Intentar abrir directamente con PIL
-                                    try:
-                                        image = Image.open(BytesIO(data))
-                                        img_byte_arr = BytesIO()
-                                        image.save(img_byte_arr, format='PNG')
-                                        img_bytes = img_byte_arr.getvalue()
-                                        img_format = 'PNG'
-                                    except Exception:
-                                        # Último intento: raw bytes
-                                        try:
-                                            color_space = obj.get('/ColorSpace', '/DeviceRGB')
-                                            if color_space == '/DeviceRGB':
-                                                mode = 'RGB'
-                                            elif color_space == '/DeviceGray':
-                                                mode = 'L'
-                                            else:
-                                                mode = 'RGB'
-                                            
-                                            image = Image.frombytes(mode, (width, height), data)
-                                            img_byte_arr = BytesIO()
-                                            image.save(img_byte_arr, format='PNG')
-                                            img_bytes = img_byte_arr.getvalue()
-                                        except Exception:
-                                            continue
-                                
-                                # Subir a Cloud Storage si se extrajo la imagen
-                                if img_bytes and len(img_bytes) > 100:  # Mínimo 100 bytes
-                                    ext = 'jpg' if img_format == 'JPEG' else 'png'
-                                    img_filename = f"{filename}_page{page_num}_{obj_name}.{ext}"
-                                    url = self.storage.upload_image(img_bytes, img_filename)
-                                    image_urls.append(url)
-                                    print(f"  Imagen extraída: {obj_name}")
-                                
-                            except Exception as e:
-                                print(f"Error extrayendo imagen {obj_name}: {e}")
-                                continue
-                                
-                            except Exception as e:
-                                print(f"Error extrayendo imagen {obj_name}: {e}")
-                                continue
-        
+                        except Exception as e:
+                            print(f"      ✗ Error extrayendo imagen {img_index}: {type(e).__name__}: {e}")
+                            continue
+                            
+                except Exception as page_error:
+                    print(f"    ✗ Error procesando página {page_num + 1}: {type(page_error).__name__}: {page_error}")
+                    continue
+            
+            print(f"  Total imágenes extraídas y subidas: {image_count}")
+                
         except Exception as e:
-            print(f"Error procesando imágenes: {e}")
+            print(f"Error general procesando imágenes del PDF: {type(e).__name__}: {e}")
         
         return image_urls
 

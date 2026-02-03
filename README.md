@@ -19,8 +19,9 @@ Cloud-native REST API for processing veterinary medical report PDFs. Extracts st
 |--------|----------|-------------|
 | `GET` | `/` | Health check |
 | `POST` | `/upload-report` | Upload and process a PDF report |
-| `GET` | `/reports` | List all processed reports |
-| `GET` | `/reports/{report_id}` | Retrieve a specific report with images |
+| `GET` | `/reports` | List all reports (patient, owner, veterinarian, diagnosis, recommendations) |
+| `GET` | `/reports/{report_id}` | Retrieve a specific report with metadata and images |
+| `GET` | `/reports/{report_id}/images` | Retrieve only the images from a report |
 
 ## Live API
 
@@ -35,13 +36,23 @@ Cloud-native REST API for processing veterinary medical report PDFs. Extracts st
 
 2. **Upload Report (POST `/upload-report`)**
    - URL: `https://diagnovet-api-1069231448075.us-central1.run.app/upload-report`
-   - Body: Select "form-data", add a field type "File" with your PDF
+   - Header: `X-API-Key: your-api-key`
+   - Body: Select "form-data", add a field `file` (type "File") with your PDF
 
 3. **List Reports (GET `/reports`)**
    - URL: `https://diagnovet-api-1069231448075.us-central1.run.app/reports`
+   - Header: `X-API-Key: your-api-key`
+   - Response includes: `patient`, `owner`, `veterinarian`, `diagnosis`, `recommendations`
 
 4. **Get Specific Report (GET `/reports/{report_id}`)**
    - URL: `https://diagnovet-api-1069231448075.us-central1.run.app/reports/{report_id}`
+   - Header: `X-API-Key: your-api-key`
+   - Response includes structured metadata and image URLs
+
+5. **Get Report Images (GET `/reports/{report_id}/images`)**
+   - URL: `https://diagnovet-api-1069231448075.us-central1.run.app/reports/{report_id}/images`
+   - Header: `X-API-Key: your-api-key`
+   - Response includes list of public image URLs from Cloud Storage
 
 ## Local Development
 

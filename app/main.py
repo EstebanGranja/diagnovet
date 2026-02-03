@@ -63,12 +63,18 @@ def list_reports(limit: int = 10, _: str = Depends(verify_api_key)):
         if hasattr(created_at, 'isoformat'):
             created_at = created_at.isoformat()
         
+        # Extraer campos según requerimiento del challenge
+        patient_data = data.get('patient', {})
+        owner_data = data.get('owner', {})
+        
         reports.append({
             "report_id": doc.id,
-            "patient_name": data.get('patient', {}).get('name'),
-            "species": data.get('patient', {}).get('species'),
-            "owner": data.get('owner', {}).get('name'),
-            "images_count": len(data.get('images', [])),
+            "patient": patient_data.get('name'),
+            "owner": owner_data.get('name'),
+            "veterinarian": data.get('veterinarian'),
+            "diagnosis": data.get('diagnosis'),
+            "recommendations": data.get('recommendations'),
+            "images": data.get('images', []),
             "created_at": created_at
         })
     
@@ -84,14 +90,30 @@ async def upload_report(file: UploadFile = File(...), _: str = Depends(verify_ap
     """
     Upload and process a veterinary PDF report (requires API Key)
     """
-    # Leer el PDF del request
-    pdf_content = await file.read()
-    
-    # Procesar
-    processor = PDFProcessor()
-    result = processor.process_report(pdf_content, file.filename)
-    
-    return result
+    try:
+        # Validar que sea PDF
+        if not file.filename.lower().endswith('.pdf'):
+            raise HTTPException(status_code=400, detail="Only PDF files are allowed")
+        
+        # Leer el PDF del request
+        pdf_content = await file.read()
+        
+        if len(pdf_content) == 0:
+            raise HTTPException(status_code=400, detail="Empty file received")
+        
+        print(f"Recibido archivo: {file.filename}, tamaño: {len(pdf_content)} bytes")
+        
+        # Procesar
+        processor = PDFProcessor()
+        result = processor.process_report(pdf_content, file.filename)
+        
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error procesando PDF: {type(e).__name__}: {e}")
+        raise HTTPException(status_code=500, detail=f"Error processing PDF: {str(e)}")
 
 
 
@@ -104,7 +126,7 @@ def get_report(report_id: str, _: str = Depends(verify_api_key)):
         report_id: Unique identifier of the report
         
     Returns:
-        JSON with report data and image URLs
+        JSON with structured metadata and image URLs
     """
     from app.services.firestore_service import FirestoreService
     
@@ -115,16 +137,53 @@ def get_report(report_id: str, _: str = Depends(verify_api_key)):
         raise HTTPException(status_code=404, detail="Report not found")
     
     # Convertir datetime a string si existe
-    if 'created_at' in report:
-        created_at = report['created_at']
-        if hasattr(created_at, 'isoformat'):
-            report['created_at'] = created_at.isoformat()
-        else:
-            report['created_at'] = str(created_at)
+    created_at = report.get('created_at')
+    if hasattr(created_at, 'isoformat'):
+        created_at = created_at.isoformat()
+    else:
+        created_at = str(created_at) if created_at else None
+    
+    # Extraer datos estructurados según el challenge
+    patient_data = report.get('patient', {})
+    owner_data = report.get('owner', {})
     
     return {
         "report_id": report_id,
-        "data": report
+        "patient": patient_data.get('name'),
+        "owner": owner_data.get('name'),
+        "veterinarian": report.get('veterinarian'),
+        "diagnosis": report.get('diagnosis'),
+        "recommendations": report.get('recommendations'),
+        "images": report.get('images', []),
+        "created_at": created_at
+    }
+
+
+@app.get("/reports/{report_id}/images")
+def get_report_images(report_id: str, _: str = Depends(verify_api_key)):
+    """
+    Retrieve images from a processed report (requires API Key)
+    
+    Args:
+        report_id: Unique identifier of the report
+        
+    Returns:
+        JSON with list of image URLs
+    """
+    from app.services.firestore_service import FirestoreService
+    
+    firestore = FirestoreService()
+    report = firestore.get_report(report_id)
+    
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    
+    images = report.get('images', [])
+    
+    return {
+        "report_id": report_id,
+        "images_count": len(images),
+        "images": images
     }
 
 if __name__ == "__main__":
