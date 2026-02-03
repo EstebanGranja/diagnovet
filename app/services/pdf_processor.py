@@ -34,26 +34,26 @@ class PDFProcessor:
         Returns:
             Diccionario con el reporte completo y su ID
         """
-        print(f"📄 Procesando: {filename}")
+        print(f"Procesando: {filename}")
         
         # 1. Extraer texto con Document AI
-        print("🤖 Extrayendo texto con Document AI...")
+        print("Extrayendo texto con Document AI...")
         document = self.document_ai.process_pdf(pdf_content)
         
         # 2. Parsear la información
-        print("🔍 Parseando información del reporte...")
+        print("Parseando información del reporte...")
         report_data = self._parse_report(document)
         
         # 3. Extraer imágenes del PDF
-        print("🖼️ Extrayendo imágenes...")
+        print("Extrayendo imágenes...")
         image_urls = self._extract_and_upload_images(pdf_content, filename)
         report_data['images'] = image_urls
         
         # 4. Guardar en Firestore
-        print("💾 Guardando en Firestore...")
+        print("Guardando en Firestore...")
         report_id = self.firestore.save_report(report_data)
         
-        print(f"✅ Reporte procesado: {report_id}")
+        print(f"Reporte procesado: {report_id}")
         
         return {
             "report_id": report_id,
@@ -225,18 +225,18 @@ class PDFProcessor:
                                     img_filename = f"{filename}_page{page_num}_{obj_name}.{ext}"
                                     url = self.storage.upload_image(img_bytes, img_filename)
                                     image_urls.append(url)
-                                    print(f"  ✅ Imagen extraída: {obj_name}")
+                                    print(f"  Imagen extraída: {obj_name}")
                                 
                             except Exception as e:
-                                print(f"⚠️ Error extrayendo imagen {obj_name}: {e}")
+                                print(f"Error extrayendo imagen {obj_name}: {e}")
                                 continue
                                 
                             except Exception as e:
-                                print(f"⚠️ Error extrayendo imagen {obj_name}: {e}")
+                                print(f"Error extrayendo imagen {obj_name}: {e}")
                                 continue
         
         except Exception as e:
-            print(f"⚠️ Error procesando imágenes: {e}")
+            print(f"Error procesando imágenes: {e}")
         
         return image_urls
 
@@ -248,16 +248,16 @@ def test_local_pdf(pdf_path: str):
     """
     processor = PDFProcessor()
     
-    print(f"📂 Leyendo PDF: {pdf_path}")
+    print(f"Leyendo PDF: {pdf_path}")
     with open(pdf_path, "rb") as f:
         pdf_content = f.read()
     
-    print(f"✅ PDF leído: {len(pdf_content)} bytes\n")
+    print(f"PDF leído: {len(pdf_content)} bytes\n")
     
     result = processor.process_report(pdf_content, pdf_path)
     
     print("\n" + "="*60)
-    print("📊 RESULTADO:")
+    print("RESULTADO:")
     print("="*60)
     print(json.dumps(result, indent=2, ensure_ascii=False, default=json_serializer))
     

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Header, Depends
 from fastapi.responses import JSONResponse
 import os
 from dotenv import load_dotenv
@@ -14,9 +14,24 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# API Key para autenticación
+API_KEY = os.getenv("API_KEY")
+
+def verify_api_key(x_api_key: str = Header(None, alias="X-API-Key")):
+    """
+    Verifies the API Key in the header.
+    If API_KEY is not set, allows free access (development).
+    """
+    if API_KEY and x_api_key != API_KEY:
+        raise HTTPException(
+            status_code=401, 
+            detail="Invalid or missing API Key. Include 'X-API-Key' header."
+        )
+    return x_api_key
+
 @app.get("/")
 def root():
-    """Health check endpoint"""
+    """Health check endpoint - público"""
     return {
         "message": "DiagnoVET API is running",
         "status": "healthy",
@@ -25,9 +40,9 @@ def root():
 
 
 @app.get("/reports")
-def list_reports(limit: int = 10):
+def list_reports(limit: int = 10, _: str = Depends(verify_api_key)):
     """
-    List all processed reports
+    List all processed reports (requires API Key)
     
     Args:
         limit: Maximum number of reports to return (default 10)
@@ -65,7 +80,10 @@ def list_reports(limit: int = 10):
 
 
 @app.post("/upload-report")
-async def upload_report(file: UploadFile = File(...)):
+async def upload_report(file: UploadFile = File(...), _: str = Depends(verify_api_key)):
+    """
+    Upload and process a veterinary PDF report (requires API Key)
+    """
     # Leer el PDF del request
     pdf_content = await file.read()
     
@@ -78,9 +96,9 @@ async def upload_report(file: UploadFile = File(...)):
 
 
 @app.get("/reports/{report_id}")
-def get_report(report_id: str):
+def get_report(report_id: str, _: str = Depends(verify_api_key)):
     """
-    Retrieve a processed report by ID
+    Retrieve a processed report by ID (requires API Key)
     
     Args:
         report_id: Unique identifier of the report
