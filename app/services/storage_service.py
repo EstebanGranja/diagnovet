@@ -21,11 +21,19 @@ class StorageService:
         # Generar nombre único
         unique_filename = f"images/{uuid.uuid4()}_{filename}"
         
+        # Detectar content type basado en los primeros bytes
+        content_type = 'image/png'
+        if image_bytes[:2] == b'\xff\xd8':
+            content_type = 'image/jpeg'
+        elif image_bytes[:4] == b'\x89PNG':
+            content_type = 'image/png'
+        
         # Crear blob y subir
         blob = self.bucket.blob(unique_filename)
-        blob.upload_from_string(image_bytes, content_type='image/png')
+        blob.upload_from_string(image_bytes, content_type=content_type)
         
-        # Hacer público
-        blob.make_public()
+        # Con uniform bucket-level access, los objetos son públicos 
+        # automáticamente si el bucket tiene el permiso allUsers
+        # No necesitamos make_public()
         
         return blob.public_url

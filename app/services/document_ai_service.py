@@ -26,9 +26,19 @@ class DocumentAIService:
             mime_type="application/pdf"
         )
         
+        # Configurar opciones de procesamiento
+        # skip_human_review y process_options para manejar documentos grandes
+        process_options = documentai.ProcessOptions(
+            ocr_config=documentai.OcrConfig(
+                enable_image_quality_scores=False,
+            )
+        )
+        
         request = documentai.ProcessRequest(
             name=self.processor_name,
-            raw_document=raw_document
+            raw_document=raw_document,
+            skip_human_review=True,
+            process_options=process_options
         )
         
         # Procesar documento
